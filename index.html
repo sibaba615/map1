@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="utf-8" />
+    <title>観光列車・ローカル鉄道マップ</title>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+    
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    
+    <link rel="stylesheet" href="style.css" />
+    <style>
+        .card-tags {
+            padding: 0 15px 10px 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            background: white;
+        }
+        .tag-badge {
+            background: #eef2f7;
+            color: #007cbf;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <div id="sidebar-title">
+            <span>おすすめの鉄道</span>
+            <button id="back-button" style="display: none;">← 一覧に戻る</button>
+        </div>
+        <div id="route-list"></div>
+    </div>
+    
+    <div id="map"></div>
+
+    <script>
+        // 1. 背景地図の設定（CARTO Voyager）
+        const style = {
+            "version": 8,
+            "sources": {
+                "carto-voyager": {
+                    "type": "raster",
+                    "tiles": [
+                        "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png"
+                    ],
+                    "tileSize": 256,
+                    "attribution": "&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors &copy; <a href='https://carto.com/attributions'>CARTO</a>"
+                }
+            },
+            "layers": [{
+                "id": "carto-voyager-layer",
+                "type": "raster",
+                "source": "carto-voyager",
+                "minzoom": 0,
+                "maxzoom": 20
+            }]
+        };
+
+        // 2. マップの初期化
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: style,
+            center: [139.5000, 35.5000], 
+            zoom: 7.5
+        });
+
+        let routesData = [];
+
+        // 3. ルートデータの読み込み
+        fetch('routes.json')
+            .then(response => response.json())
+            .then(data => {
+                routesData = data.routes;
+                initializeMapAndUI();
+            })
+            .catch(error => console.error('Error loading routes:', error));
+
+        function initializeMapAndUI() {
+            map.on('load', function() {
+                // 地図上にルート線を登録
+                routesData.forEach(route => {
+                    map.addSource(`route-${route.id}`, {
+                        "type": "geojson",
+                        "data": {
+                            "type": "Feature",
+                            "geometry": {
+                                "type": "LineString",
+                                "coordinates": route.coordinates
+                            }
+                        }
+                    });
+
+                    map.addLayer({
+                        "id": `route-line-${route.id}`,
+                        "type": "line",
+                        "source": `route-${route.id}`,
+                        "layout": {
+                            "line-join": "round",
+                            "line-cap": "round"
+                        },
+                        "paint": {
+                            "line-color": route.color,
+                            "line-width": 5,
+                            "line-opacity": 0.2 
+                        }
+                    });
+                });
+
+                // ピン（マーカー）の追加
+                addMarkers();
+
+                // 左側サイドバーのUI（カード）を構築
+                buildSidebarUI();
+                
+                // 戻るボタンのクリックイベントを設定
+                setupBackButtonEvent();
+            });
+        }
+
+        // 4. サイドバーUIの動的構築
+        function buildSidebarUI() {
+            const routeList = document.getElementById('route-list');
+            routeList.innerHTML = '';
+
+            routesData.forEach(route => {
+                const card = document.createElement('div');
+                card.className = 'route-card';
+                card.id = `card-${route.id}`;
+
+                const img = document.createElement('img');
+                img.className = 'card-img';
+                img.src = route.image_url;
+                img.alt = route.name;
+
+                const header = document.createElement('div');
+                header.className = 'card-header-content';
+                
+                const name = document.createElement('span');
+                name.className = 'card-name';
+                name.textContent = route.name;
+                name.style.color = route.color; 
+
+                header.appendChild(name);
+
+                // ★【ここを追加】タグ表示用のエリアを作る
+                const tagsContainer = document.createElement('div');
+                tagsContainer.className = 'card-tags';
+                if (route.tags && route.tags.length > 0) {
+                    route.tags.forEach(tag => {
+                        const tagSpan = document.createElement('span');
+                        tagSpan.className = 'tag-badge';
+                        tagSpan.textContent = tag;
+                        tagsContainer.appendChild(tagSpan);
+                    });
+                }
+
+                const details = document.createElement('div');
+                details.className = 'card-details';
+                details.innerHTML = `
+                    <span class="detail-label">🚉 主な駅・運行区間:</span>
+                    <p>${route.stations}</p>
+                    <span class="detail-label">⏱ 所要時間:</span>
+                    <p>${route.duration}</p>
+                    <span class="detail-label">🎫 チケット料金の目安:</span>
+                    <p>${route.price}</p>
+                `;
+
+                // カードがクリックされたときの処理
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.route-card').forEach(c => {
+                        if (c.id === `card-${route.id}`) {
+                            c.classList.add('active');
+                            c.classList.remove('hidden');
+                        } else {
+                            c.classList.add('hidden'); 
+                        }
+                    });
+
+                    details.style.display = 'block';
+
+                    routesData.forEach(r => {
+                        if (r.id === route.id) {
+                            map.setPaintProperty(`route-line-${r.id}`, 'line-opacity', 0.8);
+                        } else {
+                            map.setPaintProperty(`route-line-${r.id}`, 'line-opacity', 0.05);
+                        }
+                    });
+
+                    document.getElementById('back-button').style.display = 'block';
+
+                    if (route.coordinates && route.coordinates.length > 0) {
+                        map.flyTo({
+                            center: route.coordinates[0],
+                            zoom: 10,
+                            speed: 1.2
+                        });
+                    }
+                });
+
+                card.appendChild(img);
+                card.appendChild(header);
+                card.appendChild(tagsContainer); // ★【ここを追加】名前の下にタグを入れる
+                card.appendChild(details);
+                routeList.appendChild(card);
+            });
+        }
+
+        // 5. 「一覧に戻る」ボタンを押したときの処理
+        function setupBackButtonEvent() {
+            document.getElementById('back-button').addEventListener('click', () => {
+                document.querySelectorAll('.route-card').forEach(c => {
+                    c.classList.remove('hidden');
+                    c.classList.remove('active');
+                });
+
+                document.querySelectorAll('.card-details').forEach(d => {
+                    d.style.display = 'none';
+                });
+
+                routesData.forEach(r => {
+                    map.setPaintProperty(`route-line-${r.id}`, 'line-opacity', 0.2);
+                });
+
+                document.getElementById('back-button').style.display = 'none';
+
+                map.flyTo({
+                    center: [139.5000, 35.5000],
+                    zoom: 7.5,
+                    speed: 1.0
+                });
+            });
+        }
+
+        // 6. ピン（マーカー）データと追加処理
+        const geojsonData = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [139.1025, 35.2325] },
+                    "properties": {
+                        "name": "箱根登山鉄道 (箱根湯本駅)",
+                        "description": "日本有数の本格的な山岳鉄道。急勾配をスイッチバックで登る景色は圧ターンです。<br><span style='color:#007cbf;'>#JoyfulTrain #History</span>",
+                        "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRe2JH43bOoRkvDFC4rukK12HW_NttYnUYwzA&s"
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [140.8273, 35.7298] },
+                    "properties": {
+                        "name": "銚子電鉄 (銚子駅)",
+                        "description": "レトロな車両とぬれ煎餅で有名なローカル線。沿線にはノスタルジックな風景が広がります。<br><span style='color:#007cbf;'>#History</span>",
+                        "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRKCXazmmU_smaMiUmlsm8eGF7iaZZy0GsANw&s"
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [139.3328, 36.4111] },
+                    "properties": {
+                        "name": "わたらせ渓谷鐵道 (桐生駅)",
+                        "description": "渡良瀬川の美しい渓谷沿いを走るトロッコ列車。新緑や紅葉のシーズンは絶景が広がります。<br><span style='color:#007cbf;'>#BeautifulJapan #Nature</span>",
+                        "image_url": "https://www.watetsu.com/assets/img/train/ph_list_torokei.jpg"
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [139.9881, 36.3150] },
+                    "properties": {
+                        "name": "真岡鐵道 (下館駅)",
+                        "description": "巨大なSLが白煙を上げて走る姿は迫力満点！沿線ののどかな田園風景に癒されます。<br><span style='color:#007cbf;'>#SL #Retro #Nature</span>",
+                        "image_url": "https://www.moka-railway.co.jp/wp-content/uploads/2021/09/c299ddd6fc5873b8bd9ddb51e5a05f12-scaled.jpg"
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [139.0911, 34.9747] },
+                    "properties": {
+                        "name": "伊豆急行線 (伊東駅)",
+                        "description": "窓の外に広がる広大な太平洋！展望いっぱいのリゾート列車で巡る、南伊豆の旅が楽しめます。<br><span style='color:#007cbf;'>#OceanView #Resort</span>",
+                        "image_url": "https://www.izukyu.co.jp/assets/images/train/train/train_royalexpress.jpg"
+                    }
+                }
+            ]
+        };
+
+        function addMarkers() {
+            geojsonData.features.forEach(function(feature) {
+                const props = feature.properties;
+                const popupHtml = `
+                    <img class="popup-img" src="${props.image_url}" alt="${props.name}">
+                    <div class="popup-text-container">
+                        <div class="popup-title">${props.name}</div>
+                        <p class="popup-desc">${props.description}</p>
+                    </div>
+                `;
+
+                const popup = new maplibregl.Popup({ offset: 25 }).setHTML(popupHtml);
+
+                new maplibregl.Marker({ color: "#FF5722" })
+                    .setLngLat(feature.geometry.coordinates)
+                    .setPopup(popup)
+                    .addTo(map);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+/* 1. 画面全体のスクロールを禁止し、サイドバーと地図を独立させます */
+body { 
+    margin: 0; 
+    padding: 0; 
+    display: flex; 
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+    overflow: hidden; /* 画面全体がガタガタ動くのを防ぐ最重要設定 */
+    height: 100vh;
+}
+
+/* 2. 左側サイドバーの土台（高さは画面ぴったりに固定） */
+#sidebar {
+    width: 350px;
+    height: 100vh; /* 画面の高さ100%に固定 */
+    background: #f8f9fa;
+    box-shadow: 2px 0 20px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column; /* タイトルとリストを縦に並べる */
+    z-index: 10;
+}
+
+/* 3. タイトルエリア（ここはスクロールせず上に固定されます） */
+#sidebar-title {
+    font-weight: bold;
+    font-size: 18px;
+    color: #333;
+    padding: 20px;
+    border-bottom: 2px solid #eee;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0; /* タイトルが潰れないように固定 */
+}
+
+/* 4. 戻るボタンのデザイン */
+#back-button {
+    background: #2196F3;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+#back-button:hover {
+    background: #0b7dda;
+}
+
+/* 5. ★ここが最重要！スクロールするリスト部分 */
+#route-list {
+    flex: 1;            /* 残りの縦幅をすべてこのエリアに割り当てる */
+    overflow-y: auto;   /* ★中身が溢れたら、自動的に上下スクロールバーを出す */
+    padding: 15px;
+    padding-bottom: 60px; /* 一番下までスクロールしたときに、窮屈にならないよう余白を作る */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;          /* カード同士の間隔を広げてゆとりを持たせる */
+}
+
+/* スクロールバーの見た目をスッキリ美しくする設定 */
+#route-list::-webkit-scrollbar {
+    width: 8px;
+}
+#route-list::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 4px;
+}
+
+/* 6. 各鉄道カード（1枚ずつのサイズをしっかり確保する） */
+.route-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 2px solid transparent;
+    flex-shrink: 0; /* ★カード自体がギュッと潰されるのを絶対に防ぐ */
+}
+
+.route-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+}
+
+.route-card.active {
+    border-color: #2196F3;
+}
+
+/* 7. 写真のサイズ（潰れないように高さを140pxに固定） */
+.card-img {
+    width: 100%;
+    height: 140px;      /* 画像が途切れたり潰れたりしない高さ */
+    object-fit: cover;  /* 画像の比率を保ったまま綺麗にくり抜く */
+}
+
+/* 8. 名前の表示エリア */
+.card-header-content {
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: white;
+}
+
+.card-name {
+    font-weight: bold;
+    font-size: 16px;    /* 文字を読みやすい大きさに */
+    line-height: 1.4;
+}
+
+/* 9. 詳細情報エリア */
+.card-details {
+    display: none;
+    padding: 0 15px 15px 15px;
+    font-size: 13px;
+    color: #555;
+    border-top: 1px solid #f0f0f0;
+    background: #fafafa;
+}
+
+.card-details p {
+    margin: 8px 0;
+    line-height: 1.5;
+}
+
+.detail-label {
+    font-weight: bold;
+    color: #333;
+    display: block;
+    margin-top: 10px;
+}
+
+/* 10. 右側マップ（画面の残りの幅をいっぱいに使う） */
+#map { 
+    flex: 1;
+    height: 100vh;
+}
+
+/* 地図上のポップアップ */
+.maplibregl-popup-content {
+    max-width: 260px;
+    max-height: 300px;
+    overflow-y: auto;  
+    padding: 0;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.popup-text-container { padding: 12px; }
+.popup-title { font-weight: bold; font-size: 15px; margin-bottom: 6px; color: #222; }
+.popup-img { width: 100%; height: 140px; object-fit: cover; margin: 0; }
+.popup-desc { font-size: 12px; color: #666; margin: 0; line-height: 1.5; }
+
+/* 非表示用のクラス */
+.route-card.hidden {
+    display: none !important;
+}
